@@ -80,6 +80,10 @@
 /* .IP DICT_FLAG_LOCK
 /*	With maps where this is appropriate, acquire an exclusive lock
 /*	before writing, and acquire a shared lock before reading.
+/* .IP DICT_FLAG_OPEN_LOCK
+/*	With maps where this is appropriate, acquire an exclusive
+/*	lock upon open, and report a fatal run-time error if the
+/*	table is already locked.
 /* .IP DICT_FLAG_FOLD_FIX
 /*	With databases whose lookup fields are fixed-case strings,
 /*	fold the search key to lower case before accessing the
@@ -131,6 +135,8 @@
 /*	PERL-compatible regular expressions.
 /* .IP regexp
 /*	POSIX-compatible regular expressions.
+/* .IP texthash
+/*	Flat text in postmap(1) input format.
 /* .PP
 /*	dict_open3() takes separate arguments for dictionary type and
 /*	name, but otherwise performs the same functions as dict_open().
@@ -204,9 +210,11 @@
 #include <dict_static.h>
 #include <dict_cidr.h>
 #include <dict_ht.h>
+#include <dict_thash.h>
 #include <stringops.h>
 #include <split_at.h>
 #include <htable.h>
+#include <myflock.h>
 
  /*
   * lookup table for available map types.
@@ -251,6 +259,7 @@ static const DICT_OPEN_INFO dict_open_info[] = {
 #endif
     DICT_TYPE_STATIC, dict_static_open,
     DICT_TYPE_CIDR, dict_cidr_open,
+    DICT_TYPE_THASH, dict_thash_open,
     0,
 };
 
@@ -309,6 +318,16 @@ DICT   *dict_open3(const char *dict_type, const char *dict_name,
 	msg_fatal("opening %s:%s %m", dict_type, dict_name);
     if (msg_verbose)
 	msg_info("%s: %s:%s", myname, dict_type, dict_name);
+    /* XXX the choice between wait-for-lock or no-wait is hard-coded. */
+    if (dict->lock_fd >= 0 && (dict_flags & DICT_FLAG_OPEN_LOCK) != 0) {
+	if (dict_flags & DICT_FLAG_LOCK)
+	    msg_panic("%s: attempt to open %s:%s with both \"open\" lock and \"access\" lock",
+		      myname, dict_type, dict_name);
+	if (myflock(dict->lock_fd, INTERNAL_LOCK,
+		    MYFLOCK_OP_EXCLUSIVE | MYFLOCK_OP_NOWAIT) < 0)
+	    msg_fatal("%s:%s: unable to get exclusive lock: %m",
+		      dict_type, dict_name);
+    }
     return (dict);
 }
 

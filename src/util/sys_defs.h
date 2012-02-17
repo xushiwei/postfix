@@ -28,6 +28,7 @@
     || defined(FREEBSD8) \
     || defined(BSDI2) || defined(BSDI3) || defined(BSDI4) \
     || defined(OPENBSD2) || defined(OPENBSD3) || defined(OPENBSD4) \
+    || defined(OPENBSD5) \
     || defined(NETBSD1) || defined(NETBSD2) || defined(NETBSD3) \
     || defined(NETBSD4) \
     || defined(EKKOBSD1)
@@ -416,6 +417,10 @@ extern int opterr;
 #define LOCAL_TRIGGER	stream_trigger
 #define LOCAL_SEND_FD	stream_send_fd
 #define LOCAL_RECV_FD	stream_recv_fd
+#define PASS_CONNECT	stream_pass_connect
+#define PASS_LISTEN	stream_pass_listen
+#define PASS_ACCEPT	stream_pass_accept
+#define PASS_TRIGGER	stream_pass_trigger
 #define HAS_VOLATILE_LOCKS
 #define BROKEN_READ_SELECT_ON_TCP_SOCKET
 #define CANT_WRITE_BEFORE_SENDING_FD
@@ -572,6 +577,7 @@ extern int opterr;
 #define BROKEN_AI_PASSIVE_NULL_HOST
 #define BROKEN_AI_NULL_SERVICE
 #define USE_SYSV_POLL
+#define MYMALLOC_FUZZ	1
 #endif
 
 #ifdef AIX4
@@ -1336,9 +1342,10 @@ extern int inet_pton(int, const char *, void *);
 #endif
 
 #ifndef PASS_LISTEN
-#define PASS_LISTEN	upass_listen
-#define PASS_ACCEPT	upass_accept
-#define PASS_TRIGGER	upass_trigger
+#define PASS_CONNECT	unix_pass_connect
+#define PASS_LISTEN	unix_pass_listen
+#define PASS_ACCEPT	unix_pass_accept
+#define PASS_TRIGGER	unix_pass_trigger
 #endif
 
 #if !defined (HAVE_SYS_NDIR_H) && !defined (HAVE_SYS_DIR_H) \
@@ -1512,6 +1519,20 @@ typedef int pid_t;
 #define PRINTFPTRLIKE(x,y) PRINTFLIKE(x,y)
 #else
 #define PRINTFPTRLIKE(x,y)
+#endif
+#endif
+
+ /*
+  * Compiler optimization hint. This makes sense only for code in a
+  * performance-critical loop.
+  */
+#ifndef EXPECTED
+#if defined(__GNUC__) && (__GNUC__ > 2)
+#define EXPECTED(x)	__builtin_expect(!!(x), 1)
+#define UNEXPECTED(x)	__builtin_expect(!!(x), 0)
+#else
+#define EXPECTED(x)	(x)
+#define UNEXPECTED(x)	(x)
 #endif
 #endif
 
